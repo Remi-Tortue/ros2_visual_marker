@@ -5,13 +5,15 @@ ROS2 Humble pkg to detect visual markers.
 ## Install
 
 ```bash
-colcon build
+
+
 ```
 
 ## Use
 
+Use example :
 ```bash
-
+ros2 launch ros2_visual_marker solo_marker_detection.launch.py input_image:=/camera/camera/color/image_raw input_camera_info:=/camera/camera/color/camera_info marker_dict:=DICT_7X7_50 marker_length:=0.1 marker_id:=0
 
 ```
 

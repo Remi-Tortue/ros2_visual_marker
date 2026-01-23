@@ -24,6 +24,7 @@ class MarkerDetection(Node):
         input_image = self.declare_parameter("input_image", "/camera/rgb/image_raw", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         input_camera_info = self.declare_parameter("input_camera_info", "/camera/rgb/camera_info", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         output_pose = self.declare_parameter("output_pose", "/marker_detection", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
+        self.__output_frame = self.declare_parameter("output_frame", "", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
 
         marker_dict = self.declare_parameter("marker_dict", "DICT_APRILTAG_36h11", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         self.__marker_length = self.declare_parameter("marker_length", 0.05, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
@@ -107,19 +108,33 @@ class MarkerDetection(Node):
                     quaternion = rot2quat(R)
 
                     marker_pose = PoseStamped()
-                    marker_pose.header.frame_id = msg.header.frame_id
+                    if self.__output_frame != "":
+                        marker_pose.header.frame_id = self.__output_frame
+                    else:
+                        marker_pose.header.frame_id = msg.header.frame_id
                     marker_pose.pose.position.x = t[0]
                     marker_pose.pose.position.y = t[1]
                     marker_pose.pose.position.z = t[2]
-                    marker_pose.pose.orientation.x = quaternion[0]
-                    marker_pose.pose.orientation.y = quaternion[1]
-                    marker_pose.pose.orientation.z = quaternion[2]
-                    marker_pose.pose.orientation.w = quaternion[3]
+                    marker_pose.pose.orientation.x = quaternion[1]
+                    marker_pose.pose.orientation.y = quaternion[2]
+                    marker_pose.pose.orientation.z = quaternion[3]
+                    marker_pose.pose.orientation.w = quaternion[0]
 
                     self.__pub_marker_pose.publish(marker_pose)
 
                     annotated_image = image.copy()
                     cv.aruco.drawDetectedMarkers(annotated_image, corners, ids)
+
+                    # Draw marker axes
+                    cv.drawFrameAxes(
+                        annotated_image,
+                        cameraMatrix,
+                        distCoeffs,
+                        rvec,
+                        tvec,
+                        self.__marker_length * 0.5
+                    )
+
                     annotated_image_msg = self.__cv_bridge.cv2_to_imgmsg(annotated_image, "bgr8")
                     annotated_image_msg.header = msg.header
                     self.__pub_annotated_image.publish(annotated_image_msg)
