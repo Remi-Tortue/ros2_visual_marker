@@ -43,3 +43,41 @@ def rot2quat(R):
     quaternion = np.array([q_w, q_x, q_y, q_z])
 
     return quaternion
+
+def quat2rot(q):
+    """
+    q       -- quaternion with scalar as first element [qw qx qy qz]
+    R       -- rotation matrix 3x3
+    """
+    q_w, q_x, q_y, q_z = q[0], q[1], q[2], q[3]
+    R11 = q_w * q_w + q_x * q_x - q_y * q_y - q_z * q_z
+    R12 = 2 * (q_x * q_y - q_w * q_z)
+    R13 = 2 * (q_x * q_z + q_w * q_y)
+    R21 = 2 * (q_x * q_y + q_w * q_z)
+    R22 = q_w * q_w - q_x * q_x + q_y * q_y - q_z * q_z
+    R23 = 2 * (q_y * q_z - q_w * q_x)
+    R31 = 2 * (q_x * q_z - q_w * q_y)
+    R32 = 2 * (q_y * q_z + q_w * q_x)
+    R33 = q_w * q_w - q_x * q_x - q_y * q_y + q_z * q_z
+
+    R = np.array([[R11, R12, R13], [R21, R22, R23], [R31, R32, R33]])
+
+    return R
+
+def norm_2(y):
+    return np.sqrt(y.T@y)
+
+def dist_quat(q1, q2):
+    """Computes the scalar distance between two quaternions.
+    q       -- quaternion with scalar as first element [qw qx qy qz]
+    """
+    q1n = q1/ norm_2(q1)
+    q2n = q2/ norm_2(q2)
+    return 1 - abs(np.dot(q1n,q2n))
+
+
+if __name__ == "__main__":
+    q1 = np.array([1, 0, 0, 0])
+    q2 = np.array([1, 1, 0, 0])
+    dist = dist_quat(q1, q2)
+    print(f'quat distance: {dist}')

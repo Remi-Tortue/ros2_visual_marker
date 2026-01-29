@@ -2,6 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2 as cv
+import random
 
 import rclpy
 from rclpy.node import Node
@@ -11,7 +12,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped
 
-from . import marker_dictionarys, rot2quat
+from . import marker_dictionarys, rot2quat, dist_quat, quat2rot
 
 
 #
@@ -103,11 +104,57 @@ class MarkerDetection(Node):
                         distCoeffs,
                         flags=cv.SOLVEPNP_IPPE_SQUARE
                         )
+                    if not success:
+                        self.get_logger().warn("Could not solve PnP for marker id {}".format(self.__marker_id))
+                        continue
+
                     R, _ = cv.Rodrigues(rvec)
                     t = tvec.flatten()
                     quaternion = rot2quat(R)
 
+                    # Apply a simple moving average filter to smooth the pose estimates
+                    if not hasattr(self, '_pose_history'):
+                        self._window_size = 10  # You can adjust the window size
+                        self._pose_history = [(t.copy(), quaternion.copy())] * self._window_size
+                        self.__max_translation_jump = 0.3  # meters, adjust as needed
+                        self.__max_rotation_jump = 0.2   # quaternion distance, adjust as needed
+                        # self.__max_translation_jump = 10e3
+                        # self.__max_rotation_jump = 10e3
+
+                    # Filter out absurd values (values too far from current ones)
+                    last_t, last_quat = self._pose_history[-1]
+                    t_dist = np.linalg.norm(t - last_t)
+                    # quat_dist = dist_quat(quaternion, last_quat)
+                    # quat_dist = np.arccos(np.clip((np.trace(R @ quat2rot(last_quat).T) - 1)/2, -1, 1))
+                    quat_dist = np.linalg.norm(quaternion - last_quat)
+                    if t_dist > self.__max_translation_jump or quat_dist > self.__max_rotation_jump:
+                        # Instead of skipping, add a mean of the last pose and the absurd value to the history
+                        # t_mean = (t*9 + last_t) / 10
+                        # quat_mean = (quaternion*9 + last_quat) / 10
+                        # quat_mean = quat_mean / np.linalg.norm(quat_mean)
+                        # self._pose_history.append((t_mean.copy(), quat_mean.copy()))
+                        # self._pose_history.pop(0)
+                        random.shuffle(self._pose_history)
+                        # Skip this pose as it's an outlier
+                        self.get_logger().debug(f"Skipping outlier pose: translation jump {t_dist:.3f}, rotation jump {quat_dist:.3f}")
+                        continue
+                    else :
+                        # Store the latest pose
+                        self._pose_history.append((t.copy(), quaternion.copy()))
+                        self._pose_history.pop(0)
+
+                    # Compute the average pose
+                    t_avg = np.mean([pose[0] for pose in self._pose_history], axis=0)
+                    quat_arr = np.array([pose[1] for pose in self._pose_history])
+                    quaternion_avg = np.mean(quat_arr, axis=0)
+                    quaternion_avg = quaternion_avg / np.linalg.norm(quaternion_avg)
+
+                    t = t_avg
+                    quaternion = quaternion_avg
+
                     marker_pose = PoseStamped()
+                    marker_pose.header.stamp = msg.header.stamp
+                    # self.get_logger().info("stamp: {}".format(marker_pose.header.stamp))
                     if self.__output_frame != "":
                         marker_pose.header.frame_id = self.__output_frame
                     else:
