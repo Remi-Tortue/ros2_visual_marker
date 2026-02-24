@@ -11,6 +11,7 @@ from cv_bridge import CvBridge, CvBridgeError
 
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Bool
 
 from . import marker_dictionarys, rot2quat, dist_quat, quat2rot
 
@@ -22,10 +23,11 @@ class MarkerDetection(Node):
     def __init__(self) -> None:
         super().__init__('solo_visual_merker_detection')
 
-        input_image = self.declare_parameter("input_image", "/camera/rgb/image_raw", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
+        self.__input_image = self.declare_parameter("input_image", "/camera/rgb/image_raw", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         input_camera_info = self.declare_parameter("input_camera_info", "/camera/rgb/camera_info", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         output_pose = self.declare_parameter("output_pose", "/marker_detection", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         self.__output_frame = self.declare_parameter("output_frame", "", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
+        detection_bool_topic = self.declare_parameter("detection_bool_topic", "/marker_detection/is_detected", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
 
         marker_dict = self.declare_parameter("marker_dict", "DICT_APRILTAG_36h11", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         self.__marker_length = self.declare_parameter("marker_length", 0.05, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
@@ -51,12 +53,16 @@ class MarkerDetection(Node):
         self.__initialized = False
 
         ####
-        self.__sub_image = self.create_subscription(Image, input_image, self.__callback_image, 10)
         self.__sub_camera_info = self.create_subscription(CameraInfo, input_camera_info, self.__callback_camera_info, 10)
         self.__pub_marker_pose = self.create_publisher(PoseStamped, output_pose, 10)
-        self.__pub_annotated_image = self.create_publisher(Image, input_image+"/visual_marker", 10)
+        qos_policy = rclpy.qos.QoSProfile(reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT,
+                                          history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+                                          depth=1) # for rqt visualization
+        self.__pub_annotated_image = self.create_publisher(Image, self.__input_image+"/visual_marker", qos_profile=qos_policy)
+        self.__pub_is_detected = self.create_publisher(Bool, detection_bool_topic, 10)
 
         self.get_logger().info("Marker detection node initialized")
+
 
     #
 
@@ -74,15 +80,19 @@ class MarkerDetection(Node):
             'k3': msg.d[4]
         }
         self.__initialized = True
+        self.__sub_image = self.create_subscription(Image, self.__input_image, self.__callback_image, 10)
+
 
 
     def __callback_image(self, msg: Image):
         image = self.__cv_bridge.imgmsg_to_cv2(msg)
         (corners, ids, rejected) = self.__detector.detectMarkers(image)
+        is_detected = False
 
         if not ids is None:
             for i, marker_id in enumerate(ids):
                 if self.__marker_id == int(marker_id):
+                    is_detected = True
                     obj_points = np.array([
                             [-self.__marker_length/2,  self.__marker_length/2, 0],
                             [ self.__marker_length/2,  self.__marker_length/2, 0],
@@ -111,46 +121,6 @@ class MarkerDetection(Node):
                     R, _ = cv.Rodrigues(rvec)
                     t = tvec.flatten()
                     quaternion = rot2quat(R)
-
-                    # Apply a simple moving average filter to smooth the pose estimates
-                    if not hasattr(self, '_pose_history'):
-                        self._window_size = 10  # You can adjust the window size
-                        self._pose_history = [(t.copy(), quaternion.copy())] * self._window_size
-                        self.__max_translation_jump = 0.3  # meters, adjust as needed
-                        self.__max_rotation_jump = 0.2   # quaternion distance, adjust as needed
-                        # self.__max_translation_jump = 10e3
-                        # self.__max_rotation_jump = 10e3
-
-                    # Filter out absurd values (values too far from current ones)
-                    last_t, last_quat = self._pose_history[-1]
-                    t_dist = np.linalg.norm(t - last_t)
-                    # quat_dist = dist_quat(quaternion, last_quat)
-                    # quat_dist = np.arccos(np.clip((np.trace(R @ quat2rot(last_quat).T) - 1)/2, -1, 1))
-                    quat_dist = np.linalg.norm(quaternion - last_quat)
-                    if t_dist > self.__max_translation_jump or quat_dist > self.__max_rotation_jump:
-                        # Instead of skipping, add a mean of the last pose and the absurd value to the history
-                        # t_mean = (t*9 + last_t) / 10
-                        # quat_mean = (quaternion*9 + last_quat) / 10
-                        # quat_mean = quat_mean / np.linalg.norm(quat_mean)
-                        # self._pose_history.append((t_mean.copy(), quat_mean.copy()))
-                        # self._pose_history.pop(0)
-                        random.shuffle(self._pose_history)
-                        # Skip this pose as it's an outlier
-                        self.get_logger().debug(f"Skipping outlier pose: translation jump {t_dist:.3f}, rotation jump {quat_dist:.3f}")
-                        continue
-                    else :
-                        # Store the latest pose
-                        self._pose_history.append((t.copy(), quaternion.copy()))
-                        self._pose_history.pop(0)
-
-                    # Compute the average pose
-                    t_avg = np.mean([pose[0] for pose in self._pose_history], axis=0)
-                    quat_arr = np.array([pose[1] for pose in self._pose_history])
-                    quaternion_avg = np.mean(quat_arr, axis=0)
-                    quaternion_avg = quaternion_avg / np.linalg.norm(quaternion_avg)
-
-                    t = t_avg
-                    quaternion = quaternion_avg
 
                     marker_pose = PoseStamped()
                     marker_pose.header.stamp = msg.header.stamp
@@ -186,6 +156,9 @@ class MarkerDetection(Node):
                     annotated_image_msg.header = msg.header
                     self.__pub_annotated_image.publish(annotated_image_msg)
 
+        is_detected_msg = Bool()
+        is_detected_msg.data = is_detected
+        self.__pub_is_detected.publish(is_detected_msg)
 
     #
     

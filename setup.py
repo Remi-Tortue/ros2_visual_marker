@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'solo_marker_detection = ros2_visual_marker.solo_marker_detection:main',
+            'solo_marker_detection_filter = ros2_visual_marker.solo_marker_detection_filter:main',
         ],
     },
 )
