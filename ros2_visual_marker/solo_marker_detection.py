@@ -21,17 +21,17 @@ from . import marker_dictionarys, rot2quat, dist_quat, quat2rot
 
 class MarkerDetection(Node):
     def __init__(self) -> None:
-        super().__init__('solo_visual_merker_detection')
+        super().__init__('solo_visual_marker_detection')
 
-        self.__input_image = self.declare_parameter("input_image", "/camera/rgb/image_raw", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
-        input_camera_info = self.declare_parameter("input_camera_info", "/camera/rgb/camera_info", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
-        output_pose = self.declare_parameter("output_pose", "/marker_detection", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
-        self.__output_frame = self.declare_parameter("output_frame", "", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
-        detection_bool_topic = self.declare_parameter("detection_bool_topic", "/marker_detection/is_detected", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
+        self.__input_image = self.declare_parameter("input_image", "/camera/rgb/image_raw").value
+        input_camera_info = self.declare_parameter("input_camera_info", "/camera/rgb/camera_info").value
+        output_pose = self.declare_parameter("output_pose", "/marker_detection").value
+        self.__output_frame = self.declare_parameter("output_frame", "").value
+        detection_bool_topic = self.declare_parameter("detection_bool_topic", "/marker_detection/is_detected").value
 
-        marker_dict = self.declare_parameter("marker_dict", "DICT_APRILTAG_36h11", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
-        self.__marker_length = self.declare_parameter("marker_length", 0.05, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
-        self.__marker_id = self.declare_parameter("marker_id", 0, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
+        marker_dict = self.declare_parameter("marker_dict", "DICT_APRILTAG_36h11").value
+        self.__marker_length = self.declare_parameter("marker_length", 0.05).value
+        self.__marker_id = self.declare_parameter("marker_id", 0).value
 
         dictionary = cv.aruco.getPredefinedDictionary(marker_dictionarys[marker_dict])
         parameters =  cv.aruco.DetectorParameters()
@@ -49,8 +49,7 @@ class MarkerDetection(Node):
                     'p2': 0.,
                     'k3': 0.
                 }
-
-        self.__initialized = False
+        self.__camera_info_init = False
 
         ####
         self.__sub_camera_info = self.create_subscription(CameraInfo, input_camera_info, self.__callback_camera_info, 10)
@@ -68,19 +67,20 @@ class MarkerDetection(Node):
 
 
     def __callback_camera_info(self, msg: CameraInfo):
-        self.cam_info = {
-            'fx': msg.k[0],
-            'fy': msg.k[4],
-            'cx': msg.k[2],
-            'cy': msg.k[5],
-            'k1': msg.d[0],
-            'k2': msg.d[1],
-            'p1': msg.d[2],
-            'p2': msg.d[3],
-            'k3': msg.d[4]
-        }
-        self.__initialized = True
-        self.__sub_image = self.create_subscription(Image, self.__input_image, self.__callback_image, 10)
+        if not self.__camera_info_init:
+            self.cam_info = {
+                'fx': msg.k[0],
+                'fy': msg.k[4],
+                'cx': msg.k[2],
+                'cy': msg.k[5],
+                'k1': msg.d[0],
+                'k2': msg.d[1],
+                'p1': msg.d[2],
+                'p2': msg.d[3],
+                'k3': msg.d[4]
+            }
+            self.__sub_image = self.create_subscription(Image, self.__input_image, self.__callback_image, 10)
+            self.__camera_info_init = True
 
 
 
