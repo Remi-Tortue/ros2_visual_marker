@@ -22,14 +22,16 @@ class MarkerDetectionFilter(Node):
     def __init__(self) -> None:
         super().__init__('solo_visual_marker_detection_filter')
 
-        self._window_size = 20  # You can adjust the window size
-        self._pose_history = []
-        self.__max_translation_jump = 0.3  # meters, adjust as needed
-        self.__max_rotation_jump = 0.2   # quaternion distance, adjust as needed
-        
         input_pose = self.declare_parameter("input_pose", "/marker_detection", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         output_pose = self.declare_parameter("output_pose", "/marker_detection/filtered", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
-
+        translation_filter_value = self.declare_parameter("translation_filter_value", 0.3, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
+        rotation_filter_value = self.declare_parameter("rotation_filter_value", 0.2, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
+        
+        self._window_size = 20  # You can adjust the window size
+        self._pose_history = []
+        self.__max_translation_jump = translation_filter_value # meters, adjust as needed
+        self.__max_rotation_jump = rotation_filter_value   # quaternion distance, adjust as needed
+        
         ####
         self.__sub_marker_pose = self.create_subscription(PoseStamped, input_pose, self.__callback_marker_pose, 10)
         self.__pub_filtered_marker_pose = self.create_publisher(PoseStamped, output_pose, 10)
@@ -115,13 +117,25 @@ class MarkerDetectionFilter(Node):
 
 
 def run_node(node: Node, args):
+    # executor = rclpy.executors.MultiThreadedExecutor()
+    # executor.add_node(node)
+    # try:
+    #     executor.spin()
+    # except KeyboardInterrupt:
+    #     pass  # Suppress the KeyboardInterrupt traceback
+    # finally:
+    #     executor.shutdown()
+    #     node.destroy_node()
+    #     if rclpy.ok():  # Prevent "rcl_shutdown already called" error
+    #         rclpy.shutdown()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.get_logger().info(f"User stopped {node.get_name()}")
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():  # Prevent "rcl_shutdown already called" error
+            rclpy.shutdown()
 
 def main(args=None):
     rclpy.init(args=args)

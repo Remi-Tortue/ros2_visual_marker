@@ -179,13 +179,25 @@ class MarkerDetection(Node):
 
 
 def run_node(node: Node, args):
+    # executor = rclpy.executors.MultiThreadedExecutor()
+    # executor.add_node(node)
+    # try:
+    #     executor.spin()
+    # except KeyboardInterrupt:
+    #     pass  # Suppress the KeyboardInterrupt traceback
+    # finally:
+    #     executor.shutdown()
+    #     node.destroy_node()
+    #     if rclpy.ok():  # Prevent "rcl_shutdown already called" error
+    #         rclpy.shutdown()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.get_logger().info(f"User stopped {node.get_name()}")
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():  # Prevent "rcl_shutdown already called" error
+            rclpy.shutdown()
 
 def main(args=None):
     rclpy.init(args=args)
