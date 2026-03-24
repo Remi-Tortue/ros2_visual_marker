@@ -22,8 +22,8 @@ class MarkerDetectionFilter(Node):
     def __init__(self) -> None:
         super().__init__('solo_visual_marker_detection_filter')
 
-        input_pose = self.declare_parameter("input_pose", "/marker_detection", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
-        output_pose = self.declare_parameter("output_pose", "/marker_detection/filtered", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
+        input_pose = self.declare_parameter("input_pose", "/marker_detection/pose_3d", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
+        output_pose = self.declare_parameter("output_pose", "/marker_detection/pose_3d/filtered", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         translation_filter_value = self.declare_parameter("translation_filter_value", 0.3, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
         rotation_filter_value = self.declare_parameter("rotation_filter_value", 0.2, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
         

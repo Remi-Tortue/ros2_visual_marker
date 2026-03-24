@@ -10,7 +10,7 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from cv_bridge import CvBridge, CvBridgeError
 
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Pose, PoseArray
 from std_msgs.msg import Bool
 
 from . import marker_dictionarys, rot2quat, dist_quat, quat2rot
@@ -25,7 +25,8 @@ class MarkerDetection(Node):
 
         self.__input_image = self.declare_parameter("input_image", "/camera/rgb/image_raw").value
         input_camera_info = self.declare_parameter("input_camera_info", "/camera/rgb/camera_info").value
-        output_pose = self.declare_parameter("output_pose", "/marker_detection").value
+        output_3d_pose = self.declare_parameter("output_3d_pose", "/marker_detection/pose_3d").value
+        output_pixel_pose = self.declare_parameter("output_pixel_pose", "/marker_detection/pixel_pose").value
         self.__output_frame = self.declare_parameter("output_frame", "").value
         detection_bool_topic = self.declare_parameter("detection_bool_topic", "/marker_detection/is_detected").value
 
@@ -53,7 +54,9 @@ class MarkerDetection(Node):
 
         ####
         self.__sub_camera_info = self.create_subscription(CameraInfo, input_camera_info, self.__callback_camera_info, 10)
-        self.__pub_marker_pose = self.create_publisher(PoseStamped, output_pose, 10)
+        self.__pub_marker_3d_pose = self.create_publisher(PoseStamped, output_3d_pose, 10)
+        self.__pub_marker_pixel_pose = self.create_publisher(PoseStamped, output_pixel_pose, 10)
+        self.__pub_marker_corners_pose = self.create_publisher(PoseArray, output_pixel_pose + "/corners", 10)
         qos_policy = rclpy.qos.QoSProfile(reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT,
                                           history=rclpy.qos.HistoryPolicy.KEEP_LAST,
                                           depth=1) # for rqt visualization
@@ -137,7 +140,24 @@ class MarkerDetection(Node):
                     marker_pose.pose.orientation.z = quaternion[3]
                     marker_pose.pose.orientation.w = quaternion[0]
 
-                    self.__pub_marker_pose.publish(marker_pose)
+                    self.__pub_marker_3d_pose.publish(marker_pose)
+
+                    marker_pose.pose = Pose()
+                    center_corners = np.mean(img_points, axis=0)
+                    marker_pose.pose.position.x = float(center_corners[0])
+                    marker_pose.pose.position.y = float(center_corners[1])
+                    marker_pose.pose.position.z = 0.0
+                    self.__pub_marker_pixel_pose.publish(marker_pose)
+
+                    marker_corners = PoseArray()
+                    marker_corners.header = marker_pose.header
+                    for corner in img_points:
+                        corner_pose = Pose()
+                        corner_pose.position.x = float(corner[0])
+                        corner_pose.position.y = float(corner[1])
+                        corner_pose.position.z = 0.0
+                        marker_corners.poses.append(corner_pose)
+                    self.__pub_marker_corners_pose.publish(marker_corners)
 
                     annotated_image = image.copy()
                     cv.aruco.drawDetectedMarkers(annotated_image, corners, ids)
