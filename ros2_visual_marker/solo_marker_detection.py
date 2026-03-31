@@ -146,7 +146,7 @@ class MarkerDetection(Node):
                     center_corners = np.mean(img_points, axis=0)
                     marker_pose.pose.position.x = float(center_corners[0])
                     marker_pose.pose.position.y = float(center_corners[1])
-                    marker_pose.pose.position.z = 0.0
+                    marker_pose.pose.position.z = t[2]
                     self.__pub_marker_pixel_pose.publish(marker_pose)
 
                     marker_corners = PoseArray()
@@ -155,7 +155,7 @@ class MarkerDetection(Node):
                         corner_pose = Pose()
                         corner_pose.position.x = float(corner[0])
                         corner_pose.position.y = float(corner[1])
-                        corner_pose.position.z = 0.0
+                        corner_pose.position.z = t[2]
                         marker_corners.poses.append(corner_pose)
                     self.__pub_marker_corners_pose.publish(marker_corners)
 

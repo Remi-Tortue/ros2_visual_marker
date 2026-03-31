@@ -26,8 +26,9 @@ class MarkerDetectionFilter(Node):
         output_pose = self.declare_parameter("output_pose", "/marker_detection/pose_3d/filtered", ParameterDescriptor(type=ParameterType.PARAMETER_STRING)).get_parameter_value().string_value
         translation_filter_value = self.declare_parameter("translation_filter_value", 0.3, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
         rotation_filter_value = self.declare_parameter("rotation_filter_value", 0.2, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE)).get_parameter_value().double_value
+        filtering_window_size = self.declare_parameter("filtering_window_size", 20, ParameterDescriptor(type=ParameterType.PARAMETER_INTEGER)).get_parameter_value().integer_value
         
-        self._window_size = 20  # You can adjust the window size
+        self._window_size = filtering_window_size  # You can adjust the window size
         self._pose_history = []
         self.__max_translation_jump = translation_filter_value # meters, adjust as needed
         self.__max_rotation_jump = rotation_filter_value   # quaternion distance, adjust as needed
@@ -56,7 +57,7 @@ class MarkerDetectionFilter(Node):
 
         if len(self._pose_history) == self._window_size:
             # Filter out absurd values (values too far from current ones)
-            last_t, last_quat = self._pose_history[-1]
+            last_t, last_quat = self._pose_history[self._window_size-1]
             t_dist = np.linalg.norm(t - last_t)
             # quat_dist = dist_quat(quaternion, last_quat)
             # quat_dist = np.arccos(np.clip((np.trace(R @ quat2rot(last_quat).T) - 1)/2, -1, 1))
