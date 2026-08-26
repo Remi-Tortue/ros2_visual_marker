@@ -14,7 +14,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'opencv-python'],
     zip_safe=True,
     maintainer='rporee',
     maintainer_email='remi.poree@laas.fr',

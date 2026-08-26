@@ -79,3 +79,4 @@ yolov5/
 
 # add an exception for these specific files
 .__pycache__
+*.egg-info/
